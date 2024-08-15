@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disbox Clone</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #bb86fc;
+        }
+
+        #uploadForm {
+            background-color: #1f1f1f;
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid #333;
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        label {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #bb86fc;
+            color: #121212;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            border: 1px solid #333;
+            background-color: #121212;
+            color: #e0e0e0;
+        }
+
+        input[type="submit"] {
+            background-color: #03dac6;
+            color: #121212;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        input[type="submit"]:hover {
+            background-color: #018786;
+        }
+
+        #progressContainer {
+            margin-top: 20px;
+        }
+
+        progress {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        li {
+            background-color: #1f1f1f;
+            margin-bottom: 10px;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        button {
+            background-color: #bb86fc;
+            color: #121212;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+        }
+
+        button:hover {
+            background-color: #3700b3;
+        }
+
+        #dropZone {
+            background-color: #292929;
+            border: 2px dashed #bb86fc;
+            padding: 50px;
+            text-align: center;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            color: #bb86fc;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #dropZone.dragover {
+            background-color: #3700b3;
+            border-color: #03dac6;
+        }
+    </style>
+</head>
+<body>
+    <h1>Uploader un fichier</h1>
+
+    <div id="dropZone">Glissez et déposez vos fichiers ici ou cliquez pour sélectionner</div>
+
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" id="file" name="file" multiple>
+        <label for="file">Choisir des fichiers</label><br><br>
+        <label for="webhook_url">URL du Webhook Discord:</label>
+        <input type="text" id="webhook_url" name="webhook_url" required><br><br>
+        <input type="submit" value="Uploader">
+    </form>
+
+    <div id="progressContainer" style="display: none;">
+        <progress id="progressBar" value="0" max="100"></progress>
+        <span id="progressText">0%</span>
+    </div>
+    
+    <h1>Fichiers Uploadés</h1>
+    <ul id="fileList">
+        {% for file_id, file_info in files.items() %}
+            <li>
+                {{ file_info.filename }} 
+                <div>
+                    <button onclick="downloadFile('{{ file_id }}')">Télécharger</button>
+                    <button onclick="deleteFile('{{ file_id }}')">Supprimer</button>
+                </div>
+            </li>
+        {% endfor %}
+    </ul>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('file');
+
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            fileInput.files = e.dataTransfer.files;
+            uploadFiles();
+        });
+
+        document.getElementById('uploadForm').onsubmit = function(e) {
+            e.preventDefault();
+            uploadFiles();
+        };
+
+        function uploadFiles() {
+            const files = fileInput.files;
+            const webhookUrl = document.getElementById('webhook_url').value;
+
+            if (files.length === 0) {
+                alert('Veuillez sélectionner un fichier.');
+                return;
+            }
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('file', files[i]);
+            }
+            formData.append('webhook_url', webhookUrl);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload', true);
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = (e.loaded / e.total) * 100;
+                    document.getElementById('progressContainer').style.display = 'block';
+                    document.getElementById('progressBar').value = percentComplete;
+                    document.getElementById('progressText').textContent = Math.round(percentComplete) + '%';
+                }
+            };
+
+            xhr.onload = function() {
+                if (xhr.status === 200) {
+                    alert('Upload réussi!');
+                    location.reload();  // Rafraîchir la page pour afficher les fichiers mis à jour
+                } else {
+                    alert('Erreur lors de l\'upload!');
+                }
+            };
+
+            xhr.send(formData);
+        }
+
+        function downloadFile(fileId) {
+            fetch('/download', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ file_id: fileId }),
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                const filename = response.headers.get('Content-Disposition').split('filename=')[1].replace(/"/g, '');
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(error => console.error('Erreur:', error));
+        }
+
+        function deleteFile(fileId) {
+            fetch('/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ file_id: fileId }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message === 'File deleted successfully') {
+                    location.reload();  // Rafraîchir la page pour afficher les fichiers mis à jour
+                } else {
+                    alert('Erreur lors de la suppression du fichier!');
+                }
+            })
+            .catch(error => console.error('Erreur:', error));
+        }
+    </script>
+</body>
+</html>
